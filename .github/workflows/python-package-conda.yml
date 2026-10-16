@@ -1,0 +1,38 @@
+name: Blitz.cloud Daily Login
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+      timezone: "Asia/Tehran"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blitz-login
+  cancel-in-progress: false
+
+jobs:
+  login:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Google Chrome
+        run: python -m playwright install --with-deps chrome
+
+      - name: Run login
+        env:
+          EMAIL: ${{ secrets.EMAIL }}
+          PAS: ${{ secrets.PAS }}
+        run: python login.py
