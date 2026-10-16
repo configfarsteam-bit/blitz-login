@@ -21,8 +21,22 @@ CHALLENGE_WORDS = ("captcha", "verify you are human", "two-factor", "2fa",
 ERROR_WORDS = ("invalid", "incorrect", "wrong", "failed", "not found", "try again")
 
 
+BANNER = {
+    CONFIRMED: "✅ لاگین انجام شد / LOGIN DONE",
+    FAILED: "❌ لاگین انجام نشد / LOGIN NOT DONE",
+    UNCONFIRMED: "⚠️ نتیجه نامشخص / LOGIN UNCONFIRMED",
+}
+
+
 def finish(status: str, detail: str = "") -> None:
-    print(f"RESULT: {status}" + (f" — {detail}" if detail else ""), flush=True)
+    line = f"{BANNER[status]} | {status}" + (f" — {detail}" if detail else "")
+    print("=" * 60)
+    print(line, flush=True)
+    print("=" * 60)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write(f"## {BANNER[status]}\n\n`{status}`" + (f" — {detail}" if detail else "") + "\n")
     sys.exit(EXIT[status])
 
 
@@ -95,7 +109,14 @@ def main() -> None:
             if host.startswith("login."):
                 finish(UNCONFIRMED, "still on auth domain without form")
             if host.endswith("blitz.cloud"):
-                finish(CONFIRMED, f"landed on {host} with no login form")
+                signed = any(w in body for w in ("sign out", "log out", "logout"))
+                print(f"Page title: {page.title()!r}; sign-out link seen: {signed}")
+                print("Staying in dashboard for 4 seconds...", flush=True)
+                page.wait_for_timeout(4000)
+                page.wait_for_timeout(4000)  # stay on dashboard for 4 seconds
+                if page.get_by_label("Password", exact=True).is_visible() or not urlparse(page.url).netloc.endswith("blitz.cloud") or urlparse(page.url).netloc.startswith("login."):
+                    finish(UNCONFIRMED, "left dashboard / login form reappeared during 4s stay")
+                finish(CONFIRMED, f"landed on {host}, stayed 4s, no login form" + (", sign-out link found" if signed else ""))
             finish(UNCONFIRMED, "unexpected host")
         finally:
             browser.close()
